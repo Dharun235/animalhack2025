@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Animal + Human Detection</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <style>
+    video, canvas { position: absolute; top: 0; left: 0; }
+  </style>
+</head>
+<body>
+  <video id="video" width="640" height="480" autoplay muted></video>
+  <canvas id="canvas" width="640" height="480"></canvas>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Load COCO-SSD model
+    let model;
+    cocoSsd.load().then(m => {
+      model = m;
+      startCamera();
+    });
+
+    function startCamera() {
+      navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+        video.srcObject = stream;
+        video.onloadeddata = () => detectFrame();
+      });
+    }
+
+    function detectFrame() {
+      model.detect(video).then(predictions => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(video, 0, 0);
+
+        predictions.forEach(pred => {
+          const classesToAlert = ['person', 'dog', 'cat', 'bird', 'horse', 'cow', 'sheep'];
+          if (classesToAlert.includes(pred.class) && pred.score > 0.5) {
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 3;
+            ctx.font = '18px Arial';
+            ctx.fillStyle = 'red';
+
+            const [x, y, width, height] = pred.bbox;
+            ctx.strokeRect(x, y, width, height);
+            ctx.fillText(`${pred.class} ${(pred.score*100).toFixed(1)}%`, x, y > 20 ? y - 5 : y + 20);
+
+            // You can add alert UI or sound here
+          }
+        });
+        requestAnimationFrame(detectFrame);
+      });
+    }
+  </script>
+</body>
+</html>
