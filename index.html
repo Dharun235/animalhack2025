@@ -1,34 +1,88 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
   <title>Animal + Human Detection</title>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
   <style>
-    video, canvas { position: absolute; top: 0; left: 0; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #222;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0;
+      padding: 20px;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #container {
+      position: relative;
+      width: 640px;
+      height: 480px;
+      border: 3px solid #444;
+      border-radius: 8px;
+      overflow: hidden;
+      background: black;
+    }
+    video, canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 640px;
+      height: 480px;
+      border-radius: 8px;
+    }
+    #alertBox {
+      margin-top: 15px;
+      padding: 12px 20px;
+      background-color: #d9534f; /* Bootstrap red */
+      color: white;
+      font-weight: bold;
+      border-radius: 5px;
+      display: none;
+      width: 640px;
+      text-align: center;
+      box-shadow: 0 0 10px #d9534f;
+      user-select: none;
+    }
   </style>
 </head>
 <body>
-  <video id="video" width="640" height="480" autoplay muted></video>
-  <canvas id="canvas" width="640" height="480"></canvas>
+  <h1>Animal + Human Detection</h1>
+  <div id="container">
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="canvas"></canvas>
+  </div>
+  <div id="alertBox"></div>
 
   <script>
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
+    const alertBox = document.getElementById('alertBox');
 
-    // Load COCO-SSD model
     let model;
+    const classesToAlert = ['person', 'dog', 'cat', 'bird', 'horse', 'cow', 'sheep'];
+
+    // Load the COCO-SSD model and start camera
     cocoSsd.load().then(m => {
       model = m;
       startCamera();
     });
 
     function startCamera() {
-      navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
-        video.srcObject = stream;
-        video.onloadeddata = () => detectFrame();
-      });
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+          video.srcObject = stream;
+          video.onloadeddata = () => detectFrame();
+        })
+        .catch(err => {
+          alertBox.style.display = 'block';
+          alertBox.textContent = 'Error accessing webcam: ' + err.message;
+          alertBox.style.backgroundColor = '#d9534f';
+        });
     }
 
     function detectFrame() {
@@ -36,23 +90,52 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(video, 0, 0);
 
+        let alertMessages = [];
+
         predictions.forEach(pred => {
-          const classesToAlert = ['person', 'dog', 'cat', 'bird', 'horse', 'cow', 'sheep'];
           if (classesToAlert.includes(pred.class) && pred.score > 0.5) {
-            ctx.strokeStyle = 'red';
+            // Draw bounding box
+            ctx.strokeStyle = 'lime';
             ctx.lineWidth = 3;
             ctx.font = '18px Arial';
-            ctx.fillStyle = 'red';
+            ctx.fillStyle = 'lime';
 
             const [x, y, width, height] = pred.bbox;
             ctx.strokeRect(x, y, width, height);
             ctx.fillText(`${pred.class} ${(pred.score*100).toFixed(1)}%`, x, y > 20 ? y - 5 : y + 20);
 
-            // You can add alert UI or sound here
+            alertMessages.push(`${pred.class.charAt(0).toUpperCase() + pred.class.slice(1)} detected`);
           }
         });
+
+        // Show alert if something detected, else hide alert
+        if (alertMessages.length > 0) {
+          alertBox.style.display = 'block';
+          alertBox.textContent = alertMessages.join(', ');
+          playAlertSound();
+        } else {
+          alertBox.style.display = 'none';
+        }
+
         requestAnimationFrame(detectFrame);
       });
+    }
+
+    // Simple beep alert sound using Web Audio API
+    let lastAlertTime = 0;
+    function playAlertSound() {
+      const now = Date.now();
+      // Play sound max once every 3 seconds to avoid annoying beeps
+      if (now - lastAlertTime < 3000) return;
+      lastAlertTime = now;
+
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      oscillator.type = 'square';
+      oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); // A4 note
+      oscillator.connect(audioCtx.destination);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.2); // 200ms beep
     }
   </script>
 </body>
